@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { isPastDeadline } from '@/lib/deadline';
 
 type Student = {
   rollNumber: string;
@@ -65,31 +66,11 @@ export default function Page() {
     }
   }
 
-  async function handleRemove(rollNumber: string) {
-    clearError(rollNumber);
-    setBusyRoll(rollNumber);
-    try {
-      const res = await fetch('/api/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rollNumber }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not remove submission.');
-      setRoster(data.roster);
-    } catch (err) {
-      setErrorByRoll((p) => ({
-        ...p,
-        [rollNumber]: err instanceof Error ? err.message : 'Remove failed.',
-      }));
-    } finally {
-      setBusyRoll(null);
-    }
+  function handleDeadlinePassedClick() {
+    loadRoster();
   }
 
-  function handleReview(rollNumber: string) {
-    window.open(`/api/review?roll=${encodeURIComponent(rollNumber)}`, '_blank');
-  }
+  const deadlinePassed = isPastDeadline();
 
   const filtered = (roster || []).filter((s) => {
     const q = query.trim().toLowerCase();
@@ -202,34 +183,23 @@ export default function Page() {
               </div>
 
               {s.submitted ? (
-                <>
-                  <span
-                    style={{
-                      background: 'linear-gradient(135deg,#14B8A6,#0D9488)',
-                      color: 'white',
-                      fontWeight: 700,
-                      fontSize: 13,
-                      padding: '7px 14px',
-                      borderRadius: 999,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    ✓ Submitted
-                  </span>
-                  <button
-                    onClick={() => handleReview(s.rollNumber)}
-                    style={btnStyle('#7C3AED')}
-                  >
-                    Review
-                  </button>
-                  <button
-                    onClick={() => handleRemove(s.rollNumber)}
-                    disabled={busy}
-                    style={btnStyle('#EF4444', busy)}
-                  >
-                    {busy ? 'Removing…' : 'Remove'}
-                  </button>
-                </>
+                <span
+                  style={{
+                    background: 'linear-gradient(135deg,#14B8A6,#0D9488)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    padding: '7px 14px',
+                    borderRadius: 999,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ✓ Submitted
+                </span>
+              ) : deadlinePassed ? (
+                <button onClick={handleDeadlinePassedClick} style={btnStyle('#DC2626')}>
+                  ✕ Deadline passed
+                </button>
               ) : (
                 <>
                   <input

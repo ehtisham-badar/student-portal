@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getRoster, saveSubmission } from '@/lib/blob-helpers';
+import { isPastDeadline } from '@/lib/deadline';
 
 export async function POST(request: Request) {
   try {
+    if (isPastDeadline()) {
+      return NextResponse.json({ error: 'The submission deadline has passed.' }, { status: 403 });
+    }
+
     const form = await request.formData();
     const rollNumber = form.get('rollNumber');
     const file = form.get('file');
