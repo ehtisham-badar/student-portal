@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getRoster, saveSubmission } from '@/lib/blob-helpers';
+import { getRoster, saveSubmission, saveGrade, saveGradingError } from '@/lib/blob-helpers';
 import { isPastDeadline } from '@/lib/deadline';
+import { extractDocxText, gradeSubmission } from '@/lib/grade';
+
+// AI grading (Claude Opus 5, extended thinking) can comfortably exceed
+// Vercel's default function timeout -- give it room.
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   try {
@@ -36,7 +41,19 @@ export async function POST(request: Request) {
 
     const buffer = await file.arrayBuffer();
     const updated = await saveSubmission(rollNumber, file.name, buffer);
-    return NextResponse.json({ roster: updated });
+
+    try {
+      const text = await extractDocxText(Buffer.from(buffer));
+      const grading = await gradeSubmission(text);
+      const graded = await saveGrade(rollNumber, grading);
+      return NextResponse.json({ roster: graded });
+    } catch (gradingErr) {
+      // The submission itself is saved and counts -- grading is a
+      // best-effort add-on, so a grading failure must not fail the upload.
+      const message = gradingErr instanceof Error ? gradingErr.message : 'AI grading failed.';
+      const withError = await saveGradingError(rollNumber, message);
+      return NextResponse.json({ roster: withError });
+    }
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Upload failed.' },

@@ -1,5 +1,8 @@
 import { put, del, get } from '@vercel/blob';
 import { SEED_STUDENTS } from './seed-data';
+import type { Grading } from './grade';
+
+export type { Grading, QuestionGrade } from './grade';
 
 export type Student = {
   rollNumber: string;
@@ -7,6 +10,8 @@ export type Student = {
   submitted: boolean;
   filename?: string;
   uploadedAt?: string;
+  grading?: Grading;
+  gradingError?: string;
 };
 
 const ROSTER_PATH = 'data/students.json';
@@ -93,8 +98,35 @@ export async function saveSubmission(
   const roster = await getRoster();
   const updated = roster.map((s) =>
     s.rollNumber === rollNumber
-      ? { ...s, submitted: true, filename, uploadedAt: new Date().toISOString() }
+      ? {
+          ...s,
+          submitted: true,
+          filename,
+          uploadedAt: new Date().toISOString(),
+          grading: undefined,
+          gradingError: undefined,
+        }
       : s,
+  );
+  await saveRoster(updated);
+  return updated;
+}
+
+/** Records an AI grading result for a student's current submission. */
+export async function saveGrade(rollNumber: string, grading: Grading): Promise<Student[]> {
+  const roster = await getRoster();
+  const updated = roster.map((s) =>
+    s.rollNumber === rollNumber ? { ...s, grading, gradingError: undefined } : s,
+  );
+  await saveRoster(updated);
+  return updated;
+}
+
+/** Records that AI grading failed for a student's current submission. */
+export async function saveGradingError(rollNumber: string, message: string): Promise<Student[]> {
+  const roster = await getRoster();
+  const updated = roster.map((s) =>
+    s.rollNumber === rollNumber ? { ...s, gradingError: message } : s,
   );
   await saveRoster(updated);
   return updated;
@@ -120,7 +152,14 @@ export async function removeSubmission(rollNumber: string): Promise<Student[]> {
   const roster = await getRoster();
   const updated = roster.map((s) =>
     s.rollNumber === rollNumber
-      ? { ...s, submitted: false, filename: undefined, uploadedAt: undefined }
+      ? {
+          ...s,
+          submitted: false,
+          filename: undefined,
+          uploadedAt: undefined,
+          grading: undefined,
+          gradingError: undefined,
+        }
       : s,
   );
   await saveRoster(updated);
